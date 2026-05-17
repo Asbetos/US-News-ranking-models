@@ -1,0 +1,68 @@
+{
+  "config": {
+    "id": "M2",
+    "include_profession_rank": true,
+    "gmat_col": "GMAT_Final_1",
+    "years": [
+      2025,
+      2026
+    ]
+  },
+  "n_schools": 243,
+  "n_features": 9,
+  "features": [
+    "PeerScore",
+    "RecruiterScore",
+    "MedianGPA",
+    "AvgSalaryBonus",
+    "EmployedAtGrad",
+    "Employed3Mo",
+    "AcceptanceRate",
+    "ProfessionSalaryRank",
+    "GMAT_Combined"
+  ],
+  "r2_train": 0.9058420094163512,
+  "adj_r2_train": 0.9022050054882274,
+  "spearman_train": 0.9461575175245548,
+  "mae_train": 3.8295469711035306,
+  "rmse_train": 6.46882176138439,
+  "intercept": 54.144032921810705,
+  "condition_number": 10.225726981734603,
+  "max_vif": 16.282056922995036,
+  "bootstrap_iterations": 2000,
+  "cv_r2_mean": 0.8772906204035159,
+  "cv_r2_std": 0.06083887183038743,
+  "cv_spearman_mean": 0.9318913947005442,
+  "cv_spearman_std": 0.03466422443537222,
+  "cv_mae_mean": 4.201327790723783,
+  "cv_rmse_mean": 6.770080776525871,
+  "year_stability": {
+    "per_year_betas": {
+      "2025": {
+        "PeerScore": 9.789277393299894,
+        "RecruiterScore": 2.607880125208392,
+        "MedianGPA": -0.36022916605753585,
+        "AvgSalaryBonus": 3.666477001091091,
+        "EmployedAtGrad": 4.632159935401609,
+        "Employed3Mo": 1.7182837086284506,
+        "AcceptanceRate": -0.3758769721762469,
+        "ProfessionSalaryRank": 3.14972764169153,
+        "GMAT_Combined": 0.2787768711654492
+      },
+      "2026": {
+        "PeerScore": 5.304556043666703,
+        "RecruiterScore": 3.636609787584894,
+        "MedianGPA": 2.846797714110103,
+        "AvgSalaryBonus": 8.40374407840506,
+        "EmployedAtGrad": 1.7033292443933494,
+        "Employed3Mo": 2.295157003423562,
+        "AcceptanceRate": -1.2284424027336611,
+        "ProfessionSalaryRank": 0.9582021584689415,
+        "GMAT_Combined": 1.2883710300393014
+      }
+    },
+    "max_abs_delta": 4.737267077313969,
+    "max_delta_feature": "AvgSalaryBonus",
+    "delta_beta_l2": 8.328114745336851
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "config": {
+    "id": "M8",
+    "include_profession_rank": false,
+    "gmat_col": "GMAT_Final_2",
+    "years": [
+      2025,
+      2026
+    ]
+  },
+  "n_schools": 243,
+  "n_features": 8,
+  "features": [
+    "PeerScore",
+    "RecruiterScore",
+    "MedianGPA",
+    "AvgSalaryBonus",
+    "EmployedAtGrad",
+    "Employed3Mo",
+    "AcceptanceRate",
+    "GMAT_Combined"
+  ],
+  "r2_train": 0.9260458191420854,
+  "adj_r2_train": 0.923517471078567,
+  "spearman_train": 0.9597625417430465,
+  "mae_train": 3.761588874228125,
+  "rmse_train": 5.732947433247349,
+  "intercept": 54.14403292181069,
+  "condition_number": 6.795030750010206,
+  "max_vif": 7.273842823881177,
+  "bootstrap_iterations": 2000,
+  "cv_r2_mean": 0.9063797127278553,
+  "cv_r2_std": 0.04428245176268051,
+  "cv_spearman_mean": 0.9474960322281138,
+  "cv_spearman_std": 0.01812463719072213,
+  "cv_mae_mean": 3.9995424734429337,
+  "cv_rmse_mean": 5.957533168180126,
+  "year_stability": {
+    "per_year_betas": {
+      "2025": {
+        "PeerScore": 6.47573862854826,
+        "RecruiterScore": 2.895373378810092,
+        "MedianGPA": 0.815302915468009,
+        "AvgSalaryBonus": 5.664060740414086,
+        "EmployedAtGrad": 3.7045270170196445,
+        "Employed3Mo": 2.9310915090683425,
+        "AcceptanceRate": 1.4228255063489814,
+        "GMAT_Combined": 6.613506005116187
+      },
+      "2026": {
+        "PeerScore": 5.525278436032943,
+        "RecruiterScore": 3.6704816227408337,
+        "MedianGPA": 2.9022134077862645,
+        "AvgSalaryBonus": 9.965011902041924,
+        "EmployedAtGrad": 1.7735330148573691,
+        "Employed3Mo": 2.5520635749833294,
+        "AcceptanceRate": -1.1035944275131637,
+        "GMAT_Combined": 0.337796252399781
+      }
+    },
+    "max_abs_delta": 6.275709752716406,
+    "max_delta_feature": "GMAT_Combined",
+    "delta_beta_l2": 8.6021668350934
+  }
+}

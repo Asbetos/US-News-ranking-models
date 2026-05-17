@@ -1,0 +1,68 @@
+{
+  "config": {
+    "id": "M4",
+    "include_profession_rank": true,
+    "gmat_col": "GMAT_Final_2",
+    "years": [
+      2025,
+      2026
+    ]
+  },
+  "n_schools": 243,
+  "n_features": 9,
+  "features": [
+    "PeerScore",
+    "RecruiterScore",
+    "MedianGPA",
+    "AvgSalaryBonus",
+    "EmployedAtGrad",
+    "Employed3Mo",
+    "AcceptanceRate",
+    "ProfessionSalaryRank",
+    "GMAT_Combined"
+  ],
+  "r2_train": 0.9265608548365226,
+  "adj_r2_train": 0.9237241496585342,
+  "spearman_train": 0.9606818396997081,
+  "mae_train": 3.7185919840439716,
+  "rmse_train": 5.712949704263695,
+  "intercept": 54.144032921810684,
+  "condition_number": 10.090521517364738,
+  "max_vif": 15.8067854980199,
+  "bootstrap_iterations": 2000,
+  "cv_r2_mean": 0.9032292023854899,
+  "cv_r2_std": 0.047979692062499905,
+  "cv_spearman_mean": 0.9460358083886685,
+  "cv_spearman_std": 0.022478413012461087,
+  "cv_mae_mean": 4.027800886298532,
+  "cv_rmse_mean": 6.023859366498906,
+  "year_stability": {
+    "per_year_betas": {
+      "2025": {
+        "PeerScore": 7.116277215731029,
+        "RecruiterScore": 3.2956045698641923,
+        "MedianGPA": 0.6451177586856194,
+        "AvgSalaryBonus": 3.864317702701757,
+        "EmployedAtGrad": 3.481902338950294,
+        "Employed3Mo": 2.7088439083777733,
+        "AcceptanceRate": 0.7944668596960265,
+        "ProfessionSalaryRank": 1.5559373878517713,
+        "GMAT_Combined": 5.6997702439883495
+      },
+      "2026": {
+        "PeerScore": 5.617095422738692,
+        "RecruiterScore": 3.7540586335184285,
+        "MedianGPA": 2.8933092038503885,
+        "AvgSalaryBonus": 9.281420858798391,
+        "EmployedAtGrad": 1.7841994488790436,
+        "Employed3Mo": 2.5390195223237972,
+        "AcceptanceRate": -1.0687494060913243,
+        "ProfessionSalaryRank": 0.6551518695921025,
+        "GMAT_Combined": 0.26592195588902034
+      }
+    },
+    "max_abs_delta": 5.4338482880993295,
+    "max_delta_feature": "GMAT_Combined",
+    "delta_beta_l2": 8.57775201325853
+  }
+}

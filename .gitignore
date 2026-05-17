@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.ipynb_checkpoints/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Excel lock files
+~$*.xlsx
+~$*.xls
+
+# The stale (pre-bugfix) GWU workbook — superseded by gwu_sensitivity_per_model_v2.xlsx.
+# Once Excel releases the lock, rename _v2 over this one and remove this line.
+outputs/gwu_sensitivity_per_model.xlsx
+
+# Streamlit cache
+.streamlit/secrets.toml
+
+# Claude Code local state
+.claude/
+
+# Helper / one-off scripts kept locally
+# _regen_gwu_workbook.py  # commented: we keep this in the repo as a utility
