@@ -787,20 +787,37 @@ with tab_cross:
         q = get_quality(mid, models)
         qrows.append({**q, 'Model': mid})
     qdf = pd.DataFrame(qrows).set_index('Model')
-    qdf_long = qdf.reset_index().melt(
-        id_vars='Model', var_name='Component', value_name='Value')
-    fig_c = px.bar(
-        qdf_long[qdf_long['Component'] != 'composite_score'],
-        x='Model', y='Value', color='Component', barmode='stack',
-        category_orders={'Model': list(MODEL_CONFIGS.keys())},
-    )
+    # Build the stacked bar with explicit go.Bar traces so the stack mode is preserved
+    # even after the Composite line trace is added on top. (Plotly Express's barmode
+    # can get reset when extra trace types are appended on some versions.)
+    component_order = [
+        'coef_stability', 'sign_coherence', 'vif_clean',
+        'importance_agreement', 'bootstrap_sign_stability',
+    ]
+    palette = px.colors.qualitative.Set2
+    model_order = list(MODEL_CONFIGS.keys())
+    qdf = qdf.reindex(model_order)
+
+    fig_c = go.Figure()
+    for i, comp in enumerate(component_order):
+        fig_c.add_trace(go.Bar(
+            x=model_order, y=qdf[comp].values,
+            name=comp, marker_color=palette[i % len(palette)],
+        ))
     fig_c.add_trace(go.Scatter(
-        x=qdf.index, y=qdf['composite_score'], mode='lines+markers+text',
-        name='Composite (mean)', text=[f"{v:.3f}" for v in qdf['composite_score']],
+        x=model_order, y=qdf['composite_score'].values,
+        mode='lines+markers+text',
+        name='Composite (mean)',
+        text=[f"{v:.3f}" for v in qdf['composite_score'].values],
         textposition='top center', line=dict(color='black', width=2),
         marker=dict(size=10, color='black'),
     ))
-    fig_c.update_layout(height=460, margin=dict(l=10, r=10, t=10, b=10))
+    fig_c.update_layout(
+        barmode='stack', height=460,
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis_title='Model', yaxis_title='Component value',
+        legend=dict(orientation='v'),
+    )
     st.plotly_chart(fig_c, use_container_width=True)
     st.caption("Stacked bars = the 5 components averaged into the composite score (top line). "
                "M5 leads; M1–M4 are pulled down by their elevated VIF (`vif_clean ≈ 0`).")
