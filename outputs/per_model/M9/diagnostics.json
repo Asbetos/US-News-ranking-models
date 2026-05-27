@@ -1,0 +1,41 @@
+{
+  "config": {
+    "id": "M9",
+    "include_profession_rank": false,
+    "gmat_col": "GMAT_Final_1",
+    "years": [
+      2026
+    ],
+    "extras": [
+      "GRE_Final"
+    ]
+  },
+  "n_schools": 122,
+  "n_features": 9,
+  "features": [
+    "PeerScore",
+    "RecruiterScore",
+    "MedianGPA",
+    "AvgSalaryBonus",
+    "EmployedAtGrad",
+    "Employed3Mo",
+    "AcceptanceRate",
+    "GMAT_Combined",
+    "GRE_Final"
+  ],
+  "r2_train": 0.9738854606062205,
+  "adj_r2_train": 0.9717869708335061,
+  "spearman_train": 0.9853764174856336,
+  "mae_train": 2.3944484018157395,
+  "rmse_train": 3.250684395870845,
+  "intercept": 54.86885245901639,
+  "condition_number": 6.553281533561544,
+  "max_vif": 6.6064496154442915,
+  "bootstrap_iterations": 2000,
+  "cv_r2_mean": 0.9541183291839846,
+  "cv_r2_std": 0.03515409160592825,
+  "cv_spearman_mean": 0.9766156915936168,
+  "cv_spearman_std": 0.010288988680576197,
+  "cv_mae_mean": 2.706109951852314,
+  "cv_rmse_mean": 3.6048048255144267
+}

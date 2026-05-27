@@ -34,28 +34,30 @@ from scipy.stats import norm, rankdata, spearmanr
 NEW_MODELS_DIR = Path(__file__).parent
 PER_MODEL_DIR = NEW_MODELS_DIR / "outputs" / "per_model"
 
-LOG_VARS = ['AvgSalaryBonus', 'GMAT_Combined']
+LOG_VARS = ['AvgSalaryBonus', 'GMAT_Combined', 'GRE_Final']
 LOGIT_VARS = ['EmployedAtGrad', 'Employed3Mo', 'AcceptanceRate']
 INV_NORM_VARS = ['ProfessionSalaryRank']
 REVERSE_DIRECTION = {'AcceptanceRate', 'ProfessionSalaryRank'}
 
 EXPECTED_SIGN_TRANSFORMED = {
     'PeerScore': '+', 'RecruiterScore': '+', 'MedianGPA': '+',
-    'AvgSalaryBonus': '+', 'GMAT_Combined': '+',
+    'AvgSalaryBonus': '+', 'GMAT_Combined': '+', 'GRE_Final': '+',
     'EmployedAtGrad': '+', 'Employed3Mo': '+',
     'AcceptanceRate': '-',
     'ProfessionSalaryRank': '+',
 }
 
 MODEL_CONFIGS = {
-    'M1': {'include_profession_rank': True,  'gmat_col': 'GMAT_Final_1', 'years': [2026]},
-    'M2': {'include_profession_rank': True,  'gmat_col': 'GMAT_Final_1', 'years': [2025, 2026]},
-    'M3': {'include_profession_rank': True,  'gmat_col': 'GMAT_Final_2', 'years': [2026]},
-    'M4': {'include_profession_rank': True,  'gmat_col': 'GMAT_Final_2', 'years': [2025, 2026]},
-    'M5': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_1', 'years': [2026]},
-    'M6': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_1', 'years': [2025, 2026]},
-    'M7': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_2', 'years': [2026]},
-    'M8': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_2', 'years': [2025, 2026]},
+    'M1':  {'include_profession_rank': True,  'gmat_col': 'GMAT_Final_1', 'years': [2026],       'extras': []},
+    'M2':  {'include_profession_rank': True,  'gmat_col': 'GMAT_Final_1', 'years': [2025, 2026], 'extras': []},
+    'M3':  {'include_profession_rank': True,  'gmat_col': 'GMAT_Final_2', 'years': [2026],       'extras': []},
+    'M4':  {'include_profession_rank': True,  'gmat_col': 'GMAT_Final_2', 'years': [2025, 2026], 'extras': []},
+    'M5':  {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_1', 'years': [2026],       'extras': []},
+    'M6':  {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_1', 'years': [2025, 2026], 'extras': []},
+    'M7':  {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_2', 'years': [2026],       'extras': []},
+    'M8':  {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_2', 'years': [2025, 2026], 'extras': []},
+    'M9':  {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_1', 'years': [2026],       'extras': ['GRE_Final']},
+    'M10': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_3', 'years': [2026],       'extras': []},
 }
 
 st.set_page_config(page_title="US News 8-Model Dashboard", layout="wide")
@@ -104,10 +106,10 @@ def predict_from_raw(df_raw: pd.DataFrame, features: List[str],
 
 
 # =================== Data loader (cached) ===================
-@st.cache_data(show_spinner="Loading 8 model artifacts...")
+@st.cache_data(show_spinner="Loading model artifacts...")
 def load_all_models() -> Dict[str, Dict[str, Any]]:
     models: Dict[str, Dict[str, Any]] = {}
-    for mid in [f'M{i}' for i in range(1, 9)]:
+    for mid in MODEL_CONFIGS.keys():
         d = PER_MODEL_DIR / mid
         m: Dict[str, Any] = {}
         m['coef'] = pd.read_csv(d / 'coefficients_ols.csv')
@@ -180,8 +182,9 @@ with st.sidebar:
         "Model",
         options=list(MODEL_CONFIGS.keys()),
         index=4,  # M5 default
-        help="M5 has the highest causal-quality composite score; M7 is the best "
-             "fallback when a school sits at the GMAT_Final_1 floor.",
+        help="M5 has the highest causal-quality composite among the original "
+             "8 models. M9 = M5 + GRE_Final. M10 = M5 with GMAT_Final_3 "
+             "(KNN-imputed GMAT for GRE-only schools).",
     )
     cfg = MODEL_CONFIGS[selected_model]
     st.markdown(
@@ -463,6 +466,8 @@ with tab_sens:
             return float(np.clip(value, 0.0, 4.0))
         if feature == 'GMAT_Combined':
             return float(np.clip(value, 200.0, 800.0))
+        if feature == 'GRE_Final':
+            return float(np.clip(value, 260.0, 340.0))
         if feature == 'ProfessionSalaryRank':
             return float(max(1.0, round(value)))
         return float(value)
