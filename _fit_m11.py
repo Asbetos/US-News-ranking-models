@@ -38,7 +38,6 @@ PER_MODEL_DIR = NEW_MODELS_DIR / "outputs" / "per_model"
 RANDOM_SEED = 42
 N_BOOTSTRAP = 2000
 CV_FOLDS = 5
-EPSILON_PP = 5.0  # bandwidth in percentage points
 
 LOG_VARS = ['AvgSalaryBonus', 'GMAT_Combined']
 LOGIT_VARS = ['EmployedAtGrad', 'Employed3Mo', 'AcceptanceRate']
@@ -70,24 +69,39 @@ RENAME_MAP = {
     'GMAT Final 1': 'GMAT_Final_1',
 }
 
-# === US News methodology weights, renormalized over M5's 8 features ===
-# Published weights (sum = 100%):
-#   AvgSalaryBonus: 20, Employed3Mo: 13, PeerScore: 12.5, RecruiterScore: 12.5,
-#   Salary by profession: 10 (EXCLUDED from M5), MedianGPA: 10,
-#   EmployedAtGrad: 7, AcceptanceRate: 2, GMAT_Combined: 13.
-# Sum without "Salary by profession" = 90. Renormalize each to sum=1.0:
+# === US News methodology weights and per-feature boundaries ===
+# These are the published US News weights for the 2026 Best Business Schools
+# ranking (M5's 8 features; "Salary by profession" at 10% is excluded from M5).
+#
+# We keep the weights at their published values (which sum to 0.90, not 1.0).
+# The fitted |beta|/sum(|beta|) contributions ALWAYS sum to 1.0 by construction,
+# so the missing 10pp must come from somewhere within the per-feature corridors
+# below — concentrated in the features with the loosest boundary widths.
 US_NEWS_WEIGHTS = {
-    'AvgSalaryBonus':  20.00 / 90,
-    'Employed3Mo':     13.00 / 90,
-    'PeerScore':       12.50 / 90,
-    'RecruiterScore':  12.50 / 90,
-    'MedianGPA':       10.00 / 90,
-    'EmployedAtGrad':   7.00 / 90,
-    'AcceptanceRate':   2.00 / 90,
-    'GMAT_Combined':   13.00 / 90,
+    'AvgSalaryBonus':  0.20,
+    'Employed3Mo':     0.13,
+    'PeerScore':       0.125,
+    'RecruiterScore':  0.125,
+    'MedianGPA':       0.10,
+    'EmployedAtGrad':  0.07,
+    'AcceptanceRate':  0.02,
+    'GMAT_Combined':   0.13,
 }
-# Sanity: sum to 1.0
-assert abs(sum(US_NEWS_WEIGHTS.values()) - 1.0) < 1e-9
+assert abs(sum(US_NEWS_WEIGHTS.values()) - 0.90) < 1e-9, \
+    "Published weights for M5 features should sum to 0.90 (Salary by profession excluded)"
+
+# Per-feature boundary widths in percentage points (from the user-supplied table).
+# Each fitted contribution must lie within w_i +/- EPSILONS_PP[f] / 100.
+EPSILONS_PP = {
+    'AvgSalaryBonus':  1.0,
+    'Employed3Mo':     5.0,
+    'PeerScore':       3.0,
+    'RecruiterScore':  3.0,
+    'MedianGPA':       3.0,
+    'EmployedAtGrad':  5.0,
+    'AcceptanceRate':  2.0,
+    'GMAT_Combined':   3.0,
+}
 
 
 # =================== Feature transforms (mirror notebook) ===================
@@ -160,25 +174,25 @@ def _signs_vector(features):
     )
 
 
-def _make_bandwidth_constraint(weights_arr, eps, K):
-    """Linear constraint enforcing  w_i - eps  <=  m_i / sum(m_j)  <=  w_i + eps.
+def _make_bandwidth_constraint(weights_arr, eps_arr, K):
+    """Linear constraint enforcing  w_i - eps_i  <=  m_i / sum(m_j)  <=  w_i + eps_i.
 
     Theta is [m_1, ..., m_K, c]. Both inequalities become linear in theta:
-      m_i - (w_i - eps) * sum(m_j) >= 0    (lower bound, may be trivial when w_i - eps < 0)
-      (w_i + eps) * sum(m_j) - m_i >= 0    (upper bound)
+      m_i - (w_i - eps_i) * sum(m_j) >= 0    (lower bound, trivial when w_i - eps_i < 0)
+      (w_i + eps_i) * sum(m_j) - m_i >= 0    (upper bound)
     """
     A_lo = np.zeros((K, K + 1))
     A_hi = np.zeros((K, K + 1))
     for i in range(K):
-        A_lo[i, :K] = -(weights_arr[i] - eps)
+        A_lo[i, :K] = -(weights_arr[i] - eps_arr[i])
         A_lo[i, i] += 1.0
-        A_hi[i, :K] = +(weights_arr[i] + eps)
+        A_hi[i, :K] = +(weights_arr[i] + eps_arr[i])
         A_hi[i, i] -= 1.0
     A = np.vstack([A_lo, A_hi])  # 2K x (K+1)
     return LinearConstraint(A, 0.0, np.inf)
 
 
-def fit_constrained_one(X_vals, y_vals, signs, weights_arr, eps,
+def fit_constrained_one(X_vals, y_vals, signs, weights_arr, eps_arr,
                         maxiter=300, x0=None):
     """One constrained-LS fit. Returns (beta_array, intercept, info)."""
     K = X_vals.shape[1]
@@ -202,12 +216,15 @@ def fit_constrained_one(X_vals, y_vals, signs, weights_arr, eps,
         return np.concatenate([g_m, [g_c]])
 
     bounds = [(0.0, None)] * K + [(None, None)]
-    cons = _make_bandwidth_constraint(weights_arr, eps, K)
+    cons = _make_bandwidth_constraint(weights_arr, eps_arr, K)
 
     if x0 is None:
-        # Warm start: each m_i = w_i × (residual norm scale)
+        # Warm start: use published weights renormalized so initial ratios sum
+        # to 1.0 (which satisfies the unit-sum invariant of the contribution
+        # space). trust-constr handles small infeasibility at start gracefully.
+        renorm = weights_arr / weights_arr.sum()
         scale = float(np.linalg.norm(y_vals - y_vals.mean())) / max(K, 1)
-        x0 = np.concatenate([weights_arr * scale, [y_vals.mean()]])
+        x0 = np.concatenate([renorm * scale, [y_vals.mean()]])
 
     res = minimize(
         loss, x0, jac=grad,
@@ -224,16 +241,16 @@ def fit_constrained_one(X_vals, y_vals, signs, weights_arr, eps,
 
 # =================== Bootstrap ===================
 
-def fit_bootstrap(X, y, features, weights, eps_pp, n_iter=N_BOOTSTRAP,
+def fit_bootstrap(X, y, features, weights, eps_pp_map, n_iter=N_BOOTSTRAP,
                   seed=RANDOM_SEED, n_jobs=-1):
     K = len(features)
     signs = _signs_vector(features)
     weights_arr = np.array([weights[f] for f in features])
-    eps = eps_pp / 100.0
+    eps_arr = np.array([eps_pp_map[f] / 100.0 for f in features])
 
     # Point estimate on full data
     point_beta, point_c, info = fit_constrained_one(
-        X.values, y.values, signs, weights_arr, eps,
+        X.values, y.values, signs, weights_arr, eps_arr,
     )
     if not info['success']:
         print(f"  WARNING: point estimate optimizer did not converge: {info}")
@@ -245,7 +262,7 @@ def fit_bootstrap(X, y, features, weights, eps_pp, n_iter=N_BOOTSTRAP,
         rs = np.random.RandomState(int(s))
         idx = rs.choice(len(X), size=len(X), replace=True)
         beta, _c, _info = fit_constrained_one(
-            X.values[idx], y.values[idx], signs, weights_arr, eps,
+            X.values[idx], y.values[idx], signs, weights_arr, eps_arr,
         )
         return beta
 
@@ -346,7 +363,7 @@ def compute_importance(X, y, beta, max_shapley=12):
     return df
 
 
-def cv_metrics_constrained(df_raw, features, weights, eps_pp,
+def cv_metrics_constrained(df_raw, features, weights, eps_pp_map,
                            n_splits=CV_FOLDS, seed=RANDOM_SEED):
     """5-fold CV; each fold re-fits the constrained model."""
     y = df_raw['OverallScore'].values
@@ -354,14 +371,14 @@ def cv_metrics_constrained(df_raw, features, weights, eps_pp,
                         random_state=seed).split(df_raw))
     signs = _signs_vector(features)
     weights_arr = np.array([weights[f] for f in features])
-    eps = eps_pp / 100.0
+    eps_arr = np.array([eps_pp_map[f] / 100.0 for f in features])
 
     r2l, spl, mael, rmsel = [], [], [], []
     for tr, te in splits:
         df_tr, df_te = df_raw.iloc[tr], df_raw.iloc[te]
         X_tr, y_tr, fp = build_design_matrix(df_tr, features)
         beta_arr, c, _ = fit_constrained_one(
-            X_tr.values, y_tr.values, signs, weights_arr, eps,
+            X_tr.values, y_tr.values, signs, weights_arr, eps_arr,
         )
         X_te = transform_like(df_te[features], features, fp)
         y_te = df_te['OverallScore'].values
@@ -466,17 +483,25 @@ def main():
     print("Loading M5 frame (2026)...")
     df_raw, features = load_m5_frame()
     print(f"Frame: {df_raw.shape}, features ({len(features)}): {features}")
-    print(f"Constraint corridor (epsilon = +/-{EPSILON_PP}pp):")
+    print("Per-feature constraint corridors (centered on published US News weight):")
+    sum_w = 0.0
+    sum_hi = 0.0
+    sum_lo = 0.0
     for f in features:
         w = US_NEWS_WEIGHTS[f] * 100
-        lo = max(0, w - EPSILON_PP)
-        hi = w + EPSILON_PP
-        print(f"  {f:22s}: w={w:5.2f}%, corridor=[{lo:.2f}%, {hi:.2f}%]")
+        e = EPSILONS_PP[f]
+        lo = max(0, w - e)
+        hi = w + e
+        sum_w += w; sum_hi += hi; sum_lo += lo
+        print(f"  {f:22s}: w={w:5.2f}%, eps=+/-{e:.1f}pp, "
+              f"corridor=[{lo:5.2f}%, {hi:5.2f}%]")
+    print(f"  {'TOTAL':22s}: sum(w)={sum_w:5.2f}%, "
+          f"sum(corridor)=[{sum_lo:.2f}%, {sum_hi:.2f}%], target sum=100%")
 
     X, y, fp = build_design_matrix(df_raw, features)
 
     print(f"\nFitting constrained model (bootstrap n_iter={N_BOOTSTRAP})...")
-    result = fit_bootstrap(X, y, features, US_NEWS_WEIGHTS, EPSILON_PP,
+    result = fit_bootstrap(X, y, features, US_NEWS_WEIGHTS, EPSILONS_PP,
                            n_iter=N_BOOTSTRAP, n_jobs=-1)
     beta = result['beta']
     intercept = result['intercept']
@@ -484,17 +509,19 @@ def main():
     coef_report = summarise_ols_style(result)
     importance = compute_importance(X, y, beta)
     vif = compute_vif(X)
-    cv = cv_metrics_constrained(df_raw, features, US_NEWS_WEIGHTS, EPSILON_PP)
+    cv = cv_metrics_constrained(df_raw, features, US_NEWS_WEIGHTS, EPSILONS_PP)
 
     # Verify constraint compliance for the point estimate
     contributions = (beta.abs() / beta.abs().sum()) * 100
     constraint_check = pd.DataFrame({
         'feature': features,
         'us_news_pct': [US_NEWS_WEIGHTS[f] * 100 for f in features],
+        'epsilon_pp': [EPSILONS_PP[f] for f in features],
         'fitted_pct': contributions.values,
-        'corridor_lo': [max(0, US_NEWS_WEIGHTS[f] * 100 - EPSILON_PP)
+        'corridor_lo': [max(0, US_NEWS_WEIGHTS[f] * 100 - EPSILONS_PP[f])
                         for f in features],
-        'corridor_hi': [US_NEWS_WEIGHTS[f] * 100 + EPSILON_PP for f in features],
+        'corridor_hi': [US_NEWS_WEIGHTS[f] * 100 + EPSILONS_PP[f]
+                        for f in features],
     })
     constraint_check['in_corridor'] = (
         (constraint_check['fitted_pct'] >= constraint_check['corridor_lo'] - 1e-6)
@@ -528,7 +555,8 @@ def main():
             'kind': 'methodology_bounded',
             'weights_pct': {f: round(US_NEWS_WEIGHTS[f] * 100, 4)
                             for f in features},
-            'epsilon_pp': EPSILON_PP,
+            'epsilons_pp': {f: EPSILONS_PP[f] for f in features},
+            'weights_sum_pct': round(sum(US_NEWS_WEIGHTS.values()) * 100, 4),
             'signs_enforced': True,
             'sign_map': {f: EXPECTED_SIGN_TRANSFORMED[f] for f in features},
         },
