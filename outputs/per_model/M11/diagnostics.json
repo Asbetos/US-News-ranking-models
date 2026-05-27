@@ -1,0 +1,131 @@
+{
+  "config": {
+    "id": "M11",
+    "include_profession_rank": false,
+    "gmat_col": "GMAT_Final_1",
+    "years": [
+      2026
+    ],
+    "extras": [],
+    "kind": "methodology_bounded",
+    "label": "M11 (methodology-bounded)"
+  },
+  "n_schools": 122,
+  "n_features": 8,
+  "features": [
+    "PeerScore",
+    "RecruiterScore",
+    "MedianGPA",
+    "AvgSalaryBonus",
+    "EmployedAtGrad",
+    "Employed3Mo",
+    "AcceptanceRate",
+    "GMAT_Combined"
+  ],
+  "r2_train": 0.969942772032298,
+  "adj_r2_train": 0.9678148266894517,
+  "spearman_train": 0.982408057797938,
+  "mae_train": 2.6482977084377772,
+  "rmse_train": 3.4874507569294217,
+  "intercept": 54.86885245900471,
+  "condition_number": 6.113337583803802,
+  "max_vif": 6.4673691436192104,
+  "bootstrap_iterations": 2000,
+  "cv_r2_mean": 0.9651027548738582,
+  "cv_r2_std": 0.009131458709459599,
+  "cv_spearman_mean": 0.972679226812606,
+  "cv_spearman_std": 0.01200435891699246,
+  "cv_mae_mean": 2.782937984575785,
+  "cv_rmse_mean": 3.598897403336372,
+  "constraint_meta": {
+    "kind": "methodology_bounded",
+    "weights_pct": {
+      "PeerScore": 13.8889,
+      "RecruiterScore": 13.8889,
+      "MedianGPA": 11.1111,
+      "AvgSalaryBonus": 22.2222,
+      "EmployedAtGrad": 7.7778,
+      "Employed3Mo": 14.4444,
+      "AcceptanceRate": 2.2222,
+      "GMAT_Combined": 14.4444
+    },
+    "epsilon_pp": 5.0,
+    "signs_enforced": true,
+    "sign_map": {
+      "PeerScore": "+",
+      "RecruiterScore": "+",
+      "MedianGPA": "+",
+      "AvgSalaryBonus": "+",
+      "EmployedAtGrad": "+",
+      "Employed3Mo": "+",
+      "AcceptanceRate": "-",
+      "GMAT_Combined": "+"
+    }
+  },
+  "constraint_compliance": [
+    {
+      "feature": "PeerScore",
+      "us_news_pct": 13.88888888888889,
+      "fitted_pct": 18.888888888148152,
+      "corridor_lo": 8.88888888888889,
+      "corridor_hi": 18.88888888888889,
+      "in_corridor": true
+    },
+    {
+      "feature": "RecruiterScore",
+      "us_news_pct": 13.88888888888889,
+      "fitted_pct": 13.714923218824207,
+      "corridor_lo": 8.88888888888889,
+      "corridor_hi": 18.88888888888889,
+      "in_corridor": true
+    },
+    {
+      "feature": "MedianGPA",
+      "us_news_pct": 11.11111111111111,
+      "fitted_pct": 9.49910418383774,
+      "corridor_lo": 6.111111111111111,
+      "corridor_hi": 16.11111111111111,
+      "in_corridor": true
+    },
+    {
+      "feature": "AvgSalaryBonus",
+      "us_news_pct": 22.22222222222222,
+      "fitted_pct": 27.22222222211955,
+      "corridor_lo": 17.22222222222222,
+      "corridor_hi": 27.22222222222222,
+      "in_corridor": true
+    },
+    {
+      "feature": "EmployedAtGrad",
+      "us_news_pct": 7.777777777777778,
+      "fitted_pct": 4.8783631416406354,
+      "corridor_lo": 2.7777777777777777,
+      "corridor_hi": 12.777777777777779,
+      "in_corridor": true
+    },
+    {
+      "feature": "Employed3Mo",
+      "us_news_pct": 14.444444444444443,
+      "fitted_pct": 9.444444444953993,
+      "corridor_lo": 9.444444444444443,
+      "corridor_hi": 19.444444444444443,
+      "in_corridor": true
+    },
+    {
+      "feature": "AcceptanceRate",
+      "us_news_pct": 2.2222222222222223,
+      "fitted_pct": 6.907609455526417,
+      "corridor_lo": 0.0,
+      "corridor_hi": 7.222222222222222,
+      "in_corridor": true
+    },
+    {
+      "feature": "GMAT_Combined",
+      "us_news_pct": 14.444444444444443,
+      "fitted_pct": 9.4444444449493,
+      "corridor_lo": 9.444444444444443,
+      "corridor_hi": 19.444444444444443,
+      "in_corridor": true
+    }
+  ]
+}

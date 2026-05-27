@@ -58,7 +58,15 @@ MODEL_CONFIGS = {
     'M8':  {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_2', 'years': [2025, 2026], 'extras': []},
     'M9':  {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_1', 'years': [2026],       'extras': ['GRE_Final']},
     'M10': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_3', 'years': [2026],       'extras': []},
+    'M11': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_1', 'years': [2026],       'extras': [],
+            'kind': 'methodology_bounded',
+            'label': 'M11 (methodology-bounded)'},
 }
+
+
+def _model_label(mid: str) -> str:
+    """Return the user-facing label for a model id (falls back to the id)."""
+    return MODEL_CONFIGS[mid].get('label', mid)
 
 st.set_page_config(page_title="US News 8-Model Dashboard", layout="wide")
 
@@ -182,9 +190,12 @@ with st.sidebar:
         "Model",
         options=list(MODEL_CONFIGS.keys()),
         index=4,  # M5 default
+        format_func=_model_label,
         help="M5 has the highest causal-quality composite among the original "
-             "8 models. M9 = M5 + GRE_Final. M10 = M5 with GMAT_Final_3 "
-             "(KNN-imputed GMAT for GRE-only schools).",
+             "8 OLS models. M9 = M5 + GRE_Final. M10 = M5 with GMAT_Final_3 "
+             "(KNN-imputed GMAT for GRE-only schools). "
+             "M11 = M5 with coefficient contributions bounded to "
+             "+/-5pp of US News methodology weights.",
     )
     cfg = MODEL_CONFIGS[selected_model]
     st.markdown(
