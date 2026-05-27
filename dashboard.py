@@ -115,25 +115,37 @@ def predict_from_raw(df_raw: pd.DataFrame, features: List[str],
 
 # =================== Data loader (cached) ===================
 @st.cache_data(show_spinner="Loading model artifacts...")
-def load_all_models() -> Dict[str, Dict[str, Any]]:
+def load_all_models() -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
+    """Load per-model artifacts from outputs/per_model/.
+
+    Returns (models, errors). Each model is loaded in its own try/except so
+    one broken model doesn't prevent the others from loading — the dashboard
+    degrades gracefully when, e.g., a pickle is incompatible with the deployed
+    Python version or a file hasn't synced yet. Failures surface in the
+    sidebar so they can be debugged.
+    """
     models: Dict[str, Dict[str, Any]] = {}
+    errors: Dict[str, str] = {}
     for mid in MODEL_CONFIGS.keys():
         d = PER_MODEL_DIR / mid
-        m: Dict[str, Any] = {}
-        m['coef'] = pd.read_csv(d / 'coefficients_ols.csv')
-        m['enet'] = pd.read_csv(d / 'coefficients_enet.csv')
-        m['importance'] = pd.read_csv(d / 'importance.csv')
-        m['vif'] = pd.read_csv(d / 'vif.csv')
-        m['sens_score'] = pd.read_csv(d / 'sensitivity_score.csv', index_col=0)
-        m['sens_rank'] = pd.read_csv(d / 'sensitivity_rank.csv', index_col=0)
-        m['sens_rank_improve'] = pd.read_csv(d / 'sensitivity_rank_improve.csv', index_col=0)
-        with open(d / 'diagnostics.json') as fp:
-            m['diagnostics'] = json.load(fp)
-        with open(d / 'model_ols.pkl', 'rb') as fp:
-            m['model_state'] = pickle.load(fp)
-        m['training_frame'] = pd.read_parquet(d / 'training_frame.parquet')
-        models[mid] = m
-    return models
+        try:
+            m: Dict[str, Any] = {}
+            m['coef'] = pd.read_csv(d / 'coefficients_ols.csv')
+            m['enet'] = pd.read_csv(d / 'coefficients_enet.csv')
+            m['importance'] = pd.read_csv(d / 'importance.csv')
+            m['vif'] = pd.read_csv(d / 'vif.csv')
+            m['sens_score'] = pd.read_csv(d / 'sensitivity_score.csv', index_col=0)
+            m['sens_rank'] = pd.read_csv(d / 'sensitivity_rank.csv', index_col=0)
+            m['sens_rank_improve'] = pd.read_csv(d / 'sensitivity_rank_improve.csv', index_col=0)
+            with open(d / 'diagnostics.json') as fp:
+                m['diagnostics'] = json.load(fp)
+            with open(d / 'model_ols.pkl', 'rb') as fp:
+                m['model_state'] = pickle.load(fp)
+            m['training_frame'] = pd.read_parquet(d / 'training_frame.parquet')
+            models[mid] = m
+        except Exception as e:  # noqa: BLE001 — we want to capture any load failure
+            errors[mid] = f"{type(e).__name__}: {e}"
+    return models, errors
 
 
 @st.cache_data(show_spinner=False)
@@ -179,17 +191,46 @@ def get_quality(mid: str, models: Dict[str, Dict[str, Any]]) -> Dict[str, float]
 
 
 # =================== Sidebar controls ===================
-models = load_all_models()
-school_names = sorted(models['M5']['training_frame']['School'].unique().tolist())
+models, load_errors = load_all_models()
+
+# Restrict everything downstream to models that actually loaded.
+available_model_ids = [mid for mid in MODEL_CONFIGS.keys() if mid in models]
+if not available_model_ids:
+    st.error(
+        "No model artifacts could be loaded from `outputs/per_model/`. "
+        "Check that the directory exists and contains the per-model files."
+    )
+    if load_errors:
+        st.code('\n'.join(f"{k}: {v}" for k, v in load_errors.items()))
+    st.stop()
+
+# Pick the school list from any available model's training frame.
+school_names = sorted(
+    models[available_model_ids[0]]['training_frame']['School'].unique().tolist()
+)
 
 with st.sidebar:
-    st.markdown("## US News 8-Model Dashboard")
+    st.markdown("## US News Ranking Models Dashboard")
     st.caption("All model artifacts are pre-computed in `outputs/per_model/`. "
                "Switching models is instant; sensitivity sliders recompute predictions live.")
+
+    if load_errors:
+        with st.expander(
+            f"⚠ {len(load_errors)} model(s) failed to load", expanded=True,
+        ):
+            st.caption(
+                "These models are hidden from the selector below. "
+                "Most common cause is a missing artifact file in the deployed "
+                "environment or a pickle/parquet version mismatch."
+            )
+            for mid, msg in load_errors.items():
+                st.code(f"{mid}\n{msg}")
+
+    default_idx = available_model_ids.index('M5') if 'M5' in available_model_ids else 0
     selected_model = st.selectbox(
         "Model",
-        options=list(MODEL_CONFIGS.keys()),
-        index=4,  # M5 default
+        options=available_model_ids,
+        index=default_idx,
         format_func=_model_label,
         help="M5 has the highest causal-quality composite among the original "
              "8 OLS models. M9 = M5 + GRE_Final. M10 = M5 with GMAT_Final_3 "
@@ -797,9 +838,9 @@ with tab_diag:
 
 # =================== Tab: Cross-Model ===================
 with tab_cross:
-    st.subheader("Composite causal-quality across the 8 models")
+    st.subheader(f"Composite causal-quality across the {len(available_model_ids)} models")
     qrows = []
-    for mid in MODEL_CONFIGS.keys():
+    for mid in available_model_ids:
         q = get_quality(mid, models)
         qrows.append({**q, 'Model': mid})
     qdf = pd.DataFrame(qrows).set_index('Model')
@@ -811,7 +852,7 @@ with tab_cross:
         'importance_agreement', 'bootstrap_sign_stability',
     ]
     palette = px.colors.qualitative.Set2
-    model_order = list(MODEL_CONFIGS.keys())
+    model_order = available_model_ids
     qdf = qdf.reindex(model_order)
 
     fig_c = go.Figure()
@@ -842,7 +883,7 @@ with tab_cross:
     st.subheader("Coefficient (β_OLS) heatmap across models")
     feats_union = sorted({f for m in models.values()
                           for f in m['model_state']['features']})
-    grid = pd.DataFrame(index=feats_union, columns=list(MODEL_CONFIGS.keys()),
+    grid = pd.DataFrame(index=feats_union, columns=available_model_ids,
                         dtype=float)
     for mid, m in models.items():
         coef = m['coef'].set_index('Feature')['Beta_OLS']
