@@ -33,6 +33,9 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 NEW_MODELS_DIR = Path(__file__).parent
 DATA_FILE = NEW_MODELS_DIR / "US News Data 2025 - 2026.xlsx"
+# The newer dataset adds GMAT Final 3 (KNN-imputed for GRE-only schools)
+# and GRE Final 1. M12 uses this file.
+NEW_DATA_FILE = NEW_MODELS_DIR / "US News Data 2025 - 2026 Final 5.24.26.xlsx"
 PER_MODEL_DIR = NEW_MODELS_DIR / "outputs" / "per_model"
 
 RANDOM_SEED = 42
@@ -67,6 +70,9 @@ RENAME_MAP = {
     'ranking_scores_two_year_averages.recruiter_assessment_score_out_of_5': 'RecruiterScore',
     'ranking_scores_two_year_averages.median_undergraduate_gpa': 'MedianGPA',
     'GMAT Final 1': 'GMAT_Final_1',
+    # Only present in the newer file; harmless if absent.
+    'GMAT Final 3': 'GMAT_Final_3',
+    'GRE Final 1':  'GRE_Final',
 }
 
 # === US News methodology weights and per-feature boundaries ===
@@ -476,12 +482,79 @@ def load_m5_frame():
     return df, features
 
 
+# =================== Data prep — same features as M5, GMAT_Final_3 source ===
+
+def load_m12_frame():
+    """Same 8 features as M5/M11, but GMAT_Combined is sourced from
+    'GMAT Final 3' in the newer dataset.
+
+    GMAT Final 3 carries 15 'KNN Imputed Value' text cells (the GRE-only
+    schools). We coerce those to NaN, then KNN-impute them using the *non-GRE*
+    M5 features as distance basis — deliberately NOT including GRE Final 1
+    so the imputed GMAT doesn't become an undeclared proxy for GRE."""
+    df = pd.read_excel(NEW_DATA_FILE, sheet_name='2026')
+    df = df.rename(columns=RENAME_MAP)
+    # Coerce: "KNN Imputed Value" -> NaN; numeric strings -> float.
+    df['GMAT_Final_3'] = pd.to_numeric(df['GMAT_Final_3'], errors='coerce')
+    df['Year'] = 2026
+    df['MedianGPA'] = df['MedianGPA'].fillna(df['MedianGPA'].min())
+
+    # KNN-impute the 15 missing GMAT cells using non-GRE features only.
+    non_gre_refs = ['PeerScore', 'RecruiterScore', 'MedianGPA',
+                    'AvgSalaryBonus', 'EmployedAtGrad', 'Employed3Mo',
+                    'AcceptanceRate']
+    if df['GMAT_Final_3'].isna().any():
+        from sklearn.impute import KNNImputer
+        impute_cols = ['GMAT_Final_3'] + [
+            c for c in non_gre_refs if df[c].isna().any()
+        ]
+        ref_cols = [c for c in non_gre_refs if c not in impute_cols] or non_gre_refs
+        work = list(dict.fromkeys(impute_cols + ref_cols))
+        sub = df[work].astype(float).copy()
+        sc = StandardScaler()
+        ss = pd.DataFrame(
+            sc.fit_transform(sub.fillna(sub.median(numeric_only=True))),
+            columns=work, index=sub.index,
+        )
+        for c in impute_cols:
+            ss.loc[sub[c].isna(), c] = np.nan
+        imp = pd.DataFrame(
+            KNNImputer(n_neighbors=5, weights='distance').fit_transform(ss),
+            columns=work, index=sub.index,
+        )
+        out = pd.DataFrame(sc.inverse_transform(imp), columns=work,
+                           index=sub.index)
+        for c in impute_cols:
+            df[c] = out[c]
+
+    df['GMAT_Combined'] = df['GMAT_Final_3']
+    features = ['PeerScore', 'RecruiterScore', 'MedianGPA',
+                'AvgSalaryBonus', 'EmployedAtGrad', 'Employed3Mo',
+                'AcceptanceRate', 'GMAT_Combined']
+    keep = ['School', 'Year', 'Rank', 'OverallScore'] + features
+    df = df[keep].copy()
+    assert df[features].isna().sum().sum() == 0
+    return df, features
+
+
 # =================== Runner ===================
 
-def main():
-    np.random.seed(RANDOM_SEED)
-    print("Loading M5 frame (2026)...")
-    df_raw, features = load_m5_frame()
+def fit_variant(mid: str, label: str, gmat_col: str, frame_loader):
+    """Fit + save one methodology-bounded variant.
+
+    Parameters
+    ----------
+    mid          : output directory name, e.g. 'M11' or 'M12'.
+    label        : friendly label for dashboard / diagnostics.
+    gmat_col     : raw column name acting as GMAT source ('GMAT_Final_1' or 'GMAT_Final_3').
+                   This is purely metadata — the feature list always names it `GMAT_Combined`.
+    frame_loader : zero-arg callable returning (df_raw, features).
+    """
+    print(f"\n{'=' * 60}")
+    print(f"  Fitting {mid}: {label}")
+    print(f"  GMAT source: {gmat_col}")
+    print(f"{'=' * 60}")
+    df_raw, features = frame_loader()
     print(f"Frame: {df_raw.shape}, features ({len(features)}): {features}")
     print("Per-feature constraint corridors (centered on published US News weight):")
     sum_w = 0.0
@@ -533,10 +606,10 @@ def main():
 
     train_pred = X.values @ beta.values + intercept
     diag = {
-        'config': {'id': 'M11', 'include_profession_rank': False,
-                   'gmat_col': 'GMAT_Final_1', 'years': [2026],
+        'config': {'id': mid, 'include_profession_rank': False,
+                   'gmat_col': gmat_col, 'years': [2026],
                    'extras': [], 'kind': 'methodology_bounded',
-                   'label': 'M11 (methodology-bounded)'},
+                   'label': label},
         'n_schools': int(len(df_raw)),
         'n_features': len(features),
         'features': features,
@@ -567,7 +640,7 @@ def main():
         df_raw, features, fp, beta, intercept,
     )
 
-    out_dir = PER_MODEL_DIR / 'M11'
+    out_dir = PER_MODEL_DIR / mid
     out_dir.mkdir(parents=True, exist_ok=True)
     coef_report.to_csv(out_dir / 'coefficients_ols.csv', index=False)
     # ENet not meaningful for a constrained model — write a placeholder
@@ -589,7 +662,7 @@ def main():
         }, f)
     df_raw.to_parquet(out_dir / 'training_frame.parquet')
 
-    print(f"\n=== M11 results ===")
+    print(f"\n=== {mid} results ===")
     print(f"  R2_train         = {diag['r2_train']:.4f}")
     print(f"  CV-R2 (mean+/-sd)= {diag['cv_r2_mean']:.4f} +/- "
           f"{diag['cv_r2_std']:.4f}")
@@ -604,6 +677,23 @@ def main():
               f"target = {US_NEWS_WEIGHTS[row['Feature']]*100:5.2f}%  "
               f"95% CI=[{row['Lower_95_CI']:+.3f}, {row['Upper_95_CI']:+.3f}]")
     print(f"\nArtifacts written to {out_dir}")
+
+
+def main():
+    """Fit both methodology-bounded variants: M11 (GMAT Final 1) and M12 (GMAT Final 3)."""
+    np.random.seed(RANDOM_SEED)
+    fit_variant(
+        mid='M11',
+        label='M11 (methodology-bounded)',
+        gmat_col='GMAT_Final_1',
+        frame_loader=load_m5_frame,
+    )
+    fit_variant(
+        mid='M12',
+        label='M12 (methodology-bounded, GMAT_Final_3)',
+        gmat_col='GMAT_Final_3',
+        frame_loader=load_m12_frame,
+    )
 
 
 if __name__ == '__main__':

@@ -61,6 +61,9 @@ MODEL_CONFIGS = {
     'M11': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_1', 'years': [2026],       'extras': [],
             'kind': 'methodology_bounded',
             'label': 'M11 (methodology-bounded)'},
+    'M12': {'include_profession_rank': False, 'gmat_col': 'GMAT_Final_3', 'years': [2026],       'extras': [],
+            'kind': 'methodology_bounded',
+            'label': 'M12 (methodology-bounded, GMAT_Final_3)'},
 }
 
 
@@ -236,7 +239,8 @@ with st.sidebar:
              "8 OLS models. M9 = M5 + GRE_Final. M10 = M5 with GMAT_Final_3 "
              "(KNN-imputed GMAT for GRE-only schools). "
              "M11 = M5 with coefficient contributions bounded to "
-             "+/-5pp of US News methodology weights.",
+             "per-feature US News methodology corridors. "
+             "M12 = M11 with GMAT_Final_3 instead of GMAT_Final_1.",
     )
     cfg = MODEL_CONFIGS[selected_model]
     st.markdown(
